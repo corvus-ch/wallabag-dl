@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Strubbl/wallabago"
@@ -18,6 +20,7 @@ var debugDebug = flag.Bool("dd", false, "get even more debug output like data (i
 var v = flag.Bool("v", false, "print version")
 var verbose = flag.Bool("verbose", false, "verbose mode")
 var configJSON = flag.String("config", defaultConfigJSON, "file name of config JSON file")
+var output = flag.String("output", "out", "directory to place exported files")
 
 func handleFlags() {
 	flag.Parse()
@@ -47,6 +50,13 @@ func handleFlags() {
 	}
 }
 
+func errorExit(err error) {
+	if err != nil {
+		fmt.Println(err.Error())
+		os.Exit(1)
+	}
+}
+
 func main() {
 	log.SetOutput(os.Stdout)
 	handleFlags()
@@ -54,11 +64,25 @@ func main() {
 	if *verbose {
 		log.Println("reading config", *configJSON)
 	}
-	err := wallabago.ReadConfig(*configJSON)
-	if err != nil {
-		fmt.Println(err.Error())
-		os.Exit(1)
-	}
+	errorExit(wallabago.ReadConfig(*configJSON))
 
-	// start using wallabago exported functions here
+	// TODO Only get unread entries.
+	entries, err := wallabago.GetAllEntries()
+	errorExit(err)
+
+	outputDir, err := filepath.Abs(*output)
+	errorExit(err)
+
+	errorExit(os.MkdirAll(outputDir, 0755))
+
+	for _, entry := range entries {
+		if entry.IsArchived == 1 {
+			continue
+		}
+		data, err := wallabago.ExportEntry(wallabago.APICall, entry.ID, "epub")
+		errorExit(err)
+		fileName := fmt.Sprintf("%s.epub", entry.Title)
+		outputPath := filepath.Join(outputDir, fileName)
+		errorExit(ioutil.WriteFile(outputPath, data, 0644))
+	}
 }
