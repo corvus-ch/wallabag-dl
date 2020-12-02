@@ -27,6 +27,7 @@ var v = flag.Bool("v", false, "print version")
 var verbose = flag.Bool("verbose", false, "verbose mode")
 var configJSON = flag.String("config", defaultConfigJSON, "file name of config JSON file")
 var output = flag.String("output", "out", "directory to place exported files")
+var format = flag.String("format", "epub", "format of the exported documents")
 
 func handleFlags() {
 	flag.Parse()
@@ -114,16 +115,13 @@ func main() {
 	errorExit(os.MkdirAll(outputDir, 0755))
 
 	for _, entry := range entries {
-		if entry.IsArchived == 1 {
-			continue
-		}
-		fileName := fmt.Sprintf("%s.pdf", entry.Title)
+		fileName := fmt.Sprintf("%s.%s", entry.Title, *format)
 		outputPath := filepath.Join("out", fileName)
 
 		file, err := os.Create(outputPath)
 		errorExit(err)
 		defer file.Close()
 
-		errorExit(c.ExportEntry(entry.ID, "pdf", file))
+		errorExit(c.ExportEntry(entry.ID, *format, file))
 	}
 }
