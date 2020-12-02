@@ -13,6 +13,7 @@ import (
 
 type HttpClient interface {
 	PostForm(url string, data url.Values) (resp *http.Response, err error)
+	Do(req *http.Request) (*http.Response, error)
 }
 
 type CredentialStore interface {
@@ -133,6 +134,34 @@ func (c *Client) RefreshToken() error {
 	}
 
 	return c.saveToken()
+}
+
+func (c *Client) Get(url string, data interface{}) error {
+	resp, err := c.Request(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	return json.NewDecoder(resp.Body).Decode(data)
+}
+
+func (c *Client) Request(method, url string, body io.Reader) (*http.Response, error) {
+	authHeader, err := c.AuthHeader()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Authorization", authHeader)
+	req.Header.Add("Content-Type", "application/json")
+
+	return c.httpClient.Do(req)
 }
 
 func (c *Client) tokenURL() string {
