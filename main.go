@@ -1,15 +1,21 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
-	"github.com/Strubbl/wallabago"
+	"github.com/corvus-ch/wallabag-dl/client"
+	"golang.org/x/term"
 )
 
 const version = "0.1"
@@ -57,6 +63,30 @@ func errorExit(err error) {
 	}
 }
 
+type CredentialReader struct{}
+
+func (r *CredentialReader) Username() string {
+	fmt.Print("Enter Username: ")
+	username, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	return strings.TrimSpace(username)
+}
+
+func (r *CredentialReader) Password() string {
+	fmt.Print("Enter Password: ")
+	password, err := term.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(string(password))
+}
+
+type Config struct {
+	Url          string `json:"url"`
+	ClientId     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
+}
+
 func main() {
 	log.SetOutput(os.Stdout)
 	handleFlags()
@@ -64,10 +94,18 @@ func main() {
 	if *verbose {
 		log.Println("reading config", *configJSON)
 	}
-	errorExit(wallabago.ReadConfig(*configJSON))
+	var cfg Config
+	cfgFile, err := os.Open("config.json")
+	errorExit(json.NewDecoder(cfgFile).Decode(&cfg))
 
-	// TODO Only get unread entries.
-	entries, err := wallabago.GetAllEntries()
+	httpClient := &http.Client{
+		Timeout: 60 * time.Second,
+	}
+
+	c := client.New(httpClient, cfg.Url, cfg.ClientId, cfg.ClientSecret, &CredentialReader{})
+	entries, err := c.GetEntries(url.Values{
+		"archive": {"0"},
+	})
 	errorExit(err)
 
 	outputDir, err := filepath.Abs(*output)
@@ -79,10 +117,13 @@ func main() {
 		if entry.IsArchived == 1 {
 			continue
 		}
-		data, err := wallabago.ExportEntry(wallabago.APICall, entry.ID, "epub")
+		fileName := fmt.Sprintf("%s.pdf", entry.Title)
+		outputPath := filepath.Join("out", fileName)
+
+		file, err := os.Create(outputPath)
 		errorExit(err)
-		fileName := fmt.Sprintf("%s.epub", entry.Title)
-		outputPath := filepath.Join(outputDir, fileName)
-		errorExit(ioutil.WriteFile(outputPath, data, 0644))
+		defer file.Close()
+
+		errorExit(c.ExportEntry(entry.ID, "pdf", file))
 	}
 }
