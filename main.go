@@ -116,18 +116,37 @@ func main() {
 	errorExit(os.MkdirAll(outputDir, 0755))
 
 	for _, entry := range entries {
-		fileName := fmt.Sprintf("%s.%s", entry.Title, *format)
-		outputPath := filepath.Join("out", fileName)
-
-		file, err := os.Create(outputPath)
-		errorExit(err)
-		defer file.Close()
-
-		errorExit(c.ExportEntry(entry.ID, *format, file))
-		if *archive {
-			errorExit(c.PatchEntry(entry.ID, map[string]interface{}{
-				"archive": 1,
-			}))
-		}
+		errorExit(doExport(c, entry, outputDir, *format))
+		errorExit(doArchive(c, entry, *archive))
 	}
+}
+
+func doExport(c *client.Client, entry client.Item, dir, format string) error {
+	fileName := fmt.Sprintf("%s.%s", entry.Title, format)
+	outputPath := filepath.Join(dir, fileName)
+	var file *os.File
+	if _, err := os.Stat(outputPath); err == nil {
+		// File exists so nothing to do. Assumes the file contains the expected data and no upstream changes.
+		return nil
+	} else if os.IsNotExist(err) {
+		if file, err = os.Create(outputPath); err != nil {
+			return nil
+		}
+	} else {
+		return fmt.Errorf("failed to open output path `%s`: %v", outputPath, err)
+	}
+
+	defer file.Close()
+
+	return c.ExportEntry(entry.ID, format, file)
+}
+
+func doArchive(c *client.Client, entry client.Item, archive bool) error {
+	if !archive {
+		return nil
+	}
+
+	return c.PatchEntry(entry.ID, map[string]interface{}{
+		"archive": 1,
+	})
 }
