@@ -29,6 +29,7 @@ var configJSON = flag.String("config", defaultConfigJSON, "file name of config J
 var output = flag.String("output", "out", "directory to place exported files")
 var format = flag.String("format", "epub", "format of the exported documents")
 var archive = flag.Bool("archive", false, "archive entries after download")
+var all = flag.Bool("all", false, "download all entries including the ones that are archived")
 
 func handleFlags() {
 	flag.Parse()
@@ -105,9 +106,7 @@ func main() {
 	}
 
 	c := client.New(httpClient, cfg.Url, cfg.ClientId, cfg.ClientSecret, &CredentialReader{})
-	entries, err := c.GetEntries(url.Values{
-		"archive": {"0"},
-	})
+	entries, err := c.GetEntries(params(*all))
 	errorExit(err)
 
 	outputDir, err := filepath.Abs(*output)
@@ -119,6 +118,15 @@ func main() {
 		errorExit(doExport(c, entry, outputDir, *format))
 		errorExit(doArchive(c, entry, *archive))
 	}
+}
+
+func params(all bool) url.Values {
+	params := url.Values{}
+	if !all {
+		params.Set("archive", "0")
+	}
+
+	return params
 }
 
 func doExport(c *client.Client, entry client.Item, dir, format string) error {
@@ -142,7 +150,7 @@ func doExport(c *client.Client, entry client.Item, dir, format string) error {
 }
 
 func doArchive(c *client.Client, entry client.Item, archive bool) error {
-	if !archive {
+	if !archive || entry.IsArchived == 1 {
 		return nil
 	}
 
