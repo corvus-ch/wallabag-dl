@@ -28,6 +28,7 @@ var verbose = flag.Bool("verbose", false, "verbose mode")
 var configJSON = flag.String("config", defaultConfigJSON, "file name of config JSON file")
 var output = flag.String("output", "out", "directory to place exported files")
 var format = flag.String("format", "epub", "format of the exported documents")
+var archive = flag.Bool("archive", false, "archive entries after download")
 
 func handleFlags() {
 	flag.Parse()
@@ -123,5 +124,10 @@ func main() {
 		defer file.Close()
 
 		errorExit(c.ExportEntry(entry.ID, *format, file))
+		if *archive {
+			errorExit(c.PatchEntry(entry.ID, map[string]interface{}{
+				"archive": 1,
+			}))
+		}
 	}
 }

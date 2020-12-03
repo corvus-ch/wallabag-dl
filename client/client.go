@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -145,6 +146,18 @@ func (c *Client) Get(url string, data interface{}) error {
 	defer resp.Body.Close()
 
 	return json.NewDecoder(resp.Body).Decode(data)
+}
+
+func (c *Client) Patch(url string, data map[string]interface{}) error {
+	buf := &bytes.Buffer{}
+
+	if err := json.NewEncoder(buf).Encode(data); err != nil {
+		return err
+	}
+
+	_, err := c.Request(http.MethodPatch, url, buf)
+
+	return err
 }
 
 func (c *Client) Request(method, url string, body io.Reader) (*http.Response, error) {

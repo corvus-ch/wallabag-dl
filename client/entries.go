@@ -33,6 +33,10 @@ func (c *Client) GetEntry(id int) (Item, error) {
 	return item, err
 }
 
+func (c *Client) PatchEntry(id int, data map[string]interface{}) error {
+	return c.Patch(fmt.Sprintf("%s/api/entries/%d.json", c.baseURL, id), data)
+}
+
 func (c *Client) ExportEntry(id int, format string, w io.Writer) error {
 	resp, err := c.Request(http.MethodGet, fmt.Sprintf("%s/api/entries/%d/export.%s", c.baseURL, id, format), nil)
 	if err != nil {
