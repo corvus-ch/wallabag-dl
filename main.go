@@ -126,11 +126,14 @@ func params(all bool) url.Values {
 func doExport(log logr.Logger, c *client.Client, entry client.Item, dir, format string) error {
 	fileName := fmt.Sprintf("%s.%s", entry.Title, format)
 	outputPath := filepath.Join(dir, fileName)
+	log = log.WithValues("path", outputPath)
 	var file *os.File
 	if _, err := os.Stat(outputPath); err == nil {
+		log.V(1).Info("Skip export because output document already exists")
 		// File exists so nothing to do. Assumes the file contains the expected data and no upstream changes.
 		return nil
 	} else if os.IsNotExist(err) {
+		log.V(1).Info("Create output file")
 		if file, err = os.Create(outputPath); err != nil {
 			return nil
 		}
@@ -140,14 +143,17 @@ func doExport(log logr.Logger, c *client.Client, entry client.Item, dir, format 
 
 	defer file.Close()
 
+	log.Info("Export entry")
 	return c.ExportEntry(entry.ID, format, file)
 }
 
 func doArchive(log logr.Logger, c *client.Client, entry client.Item, archive bool) error {
 	if !archive || entry.IsArchived == 1 {
+		log.V(1).Info("Skip archive", "archive", archive, "isArchived", entry.IsArchived)
 		return nil
 	}
 
+	log.Info("Archive entry")
 	return c.PatchEntry(entry.ID, map[string]interface{}{
 		"archive": 1,
 	})

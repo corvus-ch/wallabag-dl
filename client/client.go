@@ -89,6 +89,7 @@ func (c *Client) AuthHeader() (string, error) {
 }
 
 func (c *Client) GetToken() error {
+	c.log.Info("Get new token")
 	resp, err := c.httpClient.PostForm(c.tokenURL(), url.Values{
 		"grant_type":    {"password"},
 		"client_id":     {c.clientId},
@@ -116,6 +117,7 @@ func (c *Client) GetToken() error {
 }
 
 func (c *Client) RefreshToken() error {
+	c.log.Info("Refresh token")
 	resp, err := c.httpClient.PostForm(c.tokenURL(), url.Values{
 		"grant_type":    {"refresh_token"},
 		"client_id":     {c.clientId},
@@ -142,6 +144,7 @@ func (c *Client) RefreshToken() error {
 }
 
 func (c *Client) Get(url string, data interface{}) error {
+	c.log.Info("Get resource", "url", url)
 	resp, err := c.Request(http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -153,6 +156,12 @@ func (c *Client) Get(url string, data interface{}) error {
 }
 
 func (c *Client) Patch(url string, data map[string]interface{}) error {
+	log := c.log.WithValues("url", url)
+	for k, v := range data {
+		log = log.WithValues(k, v)
+	}
+	log.Info("Patch resource")
+
 	buf := &bytes.Buffer{}
 
 	if err := json.NewEncoder(buf).Encode(data); err != nil {
@@ -165,6 +174,7 @@ func (c *Client) Patch(url string, data map[string]interface{}) error {
 }
 
 func (c *Client) Request(method, url string, body io.Reader) (*http.Response, error) {
+	c.log.Info("Request resource", "url", url, "method", method)
 	authHeader, err := c.AuthHeader()
 	if err != nil {
 		return nil, err
