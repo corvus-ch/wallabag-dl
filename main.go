@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,6 +14,8 @@ import (
 	"time"
 
 	"github.com/corvus-ch/wallabag-dl/client"
+	"github.com/go-logr/logr"
+	"github.com/wojas/genericr"
 	"golang.org/x/term"
 )
 
@@ -22,7 +23,6 @@ const version = "0.1"
 const defaultConfigJSON = "config.json"
 
 var debug = flag.Bool("d", false, "get debug output (implies verbose mode)")
-var debugDebug = flag.Bool("dd", false, "get even more debug output like data (implies debug mode)")
 var v = flag.Bool("v", false, "print version")
 var verbose = flag.Bool("verbose", false, "verbose mode")
 var configJSON = flag.String("config", defaultConfigJSON, "file name of config JSON file")
@@ -31,37 +31,31 @@ var format = flag.String("format", "epub", "format of the exported documents")
 var archive = flag.Bool("archive", false, "archive entries after download")
 var all = flag.Bool("all", false, "download all entries including the ones that are archived")
 
-func handleFlags() {
+func handleFlags() logr.Logger {
 	flag.Parse()
-	if *debug && len(flag.Args()) > 0 {
-		log.Printf("handleFlags: non-flag args=%v", strings.Join(flag.Args(), " "))
+	log := genericr.New(func(e genericr.Entry) {
+		fmt.Fprintln(os.Stderr, e.String())
+	}).WithVerbosity(0)
+	if *debug {
+		log = log.WithVerbosity(2)
+	} else if *verbose {
+		log = log.WithVerbosity(1)
+	}
+	if len(flag.Args()) > 0 {
+		log.V(2).Info("handleFlags: non-flag", "args", strings.Join(flag.Args(), " "))
 	}
 	// version first, because it directly exits here
 	if *v {
 		fmt.Printf("version %v\n", version)
 		os.Exit(0)
 	}
-	// test verbose before debug because debug implies verbose
-	if *verbose && !*debug && !*debugDebug {
-		log.Printf("verbose mode")
-	}
-	if *debug && !*debugDebug {
-		log.Printf("handleFlags: debug mode")
-		// debug implies verbose
-		*verbose = true
-	}
-	if *debugDebug {
-		log.Printf("handleFlags: debug² mode")
-		// debugDebug implies debug
-		*debug = true
-		// and debug implies verbose
-		*verbose = true
-	}
+
+	return log.V(1)
 }
 
-func errorExit(err error) {
+func errorExit(log logr.Logger, err error, msg string) {
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Error(err, msg)
 		os.Exit(1)
 	}
 }
@@ -91,32 +85,32 @@ type Config struct {
 }
 
 func main() {
-	log.SetOutput(os.Stdout)
-	handleFlags()
+	log := handleFlags()
+
 	// check for config
-	if *verbose {
-		log.Println("reading config", *configJSON)
-	}
 	var cfg Config
+	log.V(1).Info("read config from file", "path", *configJSON)
 	cfgFile, err := os.Open("config.json")
-	errorExit(json.NewDecoder(cfgFile).Decode(&cfg))
+	errorExit(log, json.NewDecoder(cfgFile).Decode(&cfg), "failed to read client configuration")
 
 	httpClient := &http.Client{
 		Timeout: 60 * time.Second,
 	}
 
-	c := client.New(httpClient, cfg.Url, cfg.ClientId, cfg.ClientSecret, &CredentialReader{})
+	c := client.New(log.V(1), httpClient, cfg.Url, cfg.ClientId, cfg.ClientSecret, &CredentialReader{})
 	entries, err := c.GetEntries(params(*all))
-	errorExit(err)
+	errorExit(log, err, "failed to instantiate API client")
 
 	outputDir, err := filepath.Abs(*output)
-	errorExit(err)
+	errorExit(log, err, "failed determine path to output directory")
 
-	errorExit(os.MkdirAll(outputDir, 0755))
+	errorExit(log, os.MkdirAll(outputDir, 0755), "failed to create output directory")
 
 	for _, entry := range entries {
-		errorExit(doExport(c, entry, outputDir, *format))
-		errorExit(doArchive(c, entry, *archive))
+		entryLog := log.WithValues("id", entry.ID, "title", entry.Title)
+		entryLog.Info("Process entry")
+		errorExit(entryLog, doExport(entryLog, c, entry, outputDir, *format), "failed to export")
+		errorExit(entryLog, doArchive(entryLog, c, entry, *archive), "failed to archive")
 	}
 }
 
@@ -129,7 +123,7 @@ func params(all bool) url.Values {
 	return params
 }
 
-func doExport(c *client.Client, entry client.Item, dir, format string) error {
+func doExport(log logr.Logger, c *client.Client, entry client.Item, dir, format string) error {
 	fileName := fmt.Sprintf("%s.%s", entry.Title, format)
 	outputPath := filepath.Join(dir, fileName)
 	var file *os.File
@@ -149,7 +143,7 @@ func doExport(c *client.Client, entry client.Item, dir, format string) error {
 	return c.ExportEntry(entry.ID, format, file)
 }
 
-func doArchive(c *client.Client, entry client.Item, archive bool) error {
+func doArchive(log logr.Logger, c *client.Client, entry client.Item, archive bool) error {
 	if !archive || entry.IsArchived == 1 {
 		return nil
 	}

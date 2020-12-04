@@ -10,6 +10,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/go-logr/logr"
 )
 
 type HttpClient interface {
@@ -23,6 +25,7 @@ type CredentialStore interface {
 }
 
 type Client struct {
+	log          logr.Logger
 	httpClient   HttpClient
 	baseURL      string
 	clientId     string
@@ -48,8 +51,9 @@ type tokenResponse struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-func New(httpClient HttpClient, baseURL, clientId, clientSecret string, credentials CredentialStore) *Client {
+func New(log logr.Logger, httpClient HttpClient, baseURL, clientId, clientSecret string, credentials CredentialStore) *Client {
 	c := &Client{
+		log:          log,
 		httpClient:   httpClient,
 		baseURL:      baseURL,
 		clientId:     clientId,
