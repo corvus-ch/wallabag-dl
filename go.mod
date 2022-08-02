@@ -1,11 +1,11 @@
 module github.com/corvus-ch/wallabag-dl
 
-go 1.15
+go 1.18
 
 require (
-	github.com/go-logr/logr v0.3.0
-	github.com/wojas/genericr v0.2.0
-	golang.org/x/term v0.0.0-20201117132131-f5c789dd3221
+	github.com/go-logr/logr v1.2.3
+	github.com/go-logr/stdr v1.2.2
+	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035
 )
 
-replace github.com/wojas/genericr v0.2.0 => github.com/corvus-ch/genericr v0.2.1-0.20201204161421-befbf19e2e33
+require golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect

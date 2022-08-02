@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	stdlog "log"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,7 +16,7 @@ import (
 
 	"github.com/corvus-ch/wallabag-dl/client"
 	"github.com/go-logr/logr"
-	"github.com/wojas/genericr"
+	"github.com/go-logr/stdr"
 	"golang.org/x/term"
 )
 
@@ -33,13 +34,13 @@ var all = flag.Bool("all", false, "download all entries including the ones that 
 
 func handleFlags() logr.Logger {
 	flag.Parse()
-	log := genericr.New(func(e genericr.Entry) {
-		fmt.Fprintln(os.Stderr, e.String())
-	}).WithVerbosity(0)
+
+	log := stdr.NewWithOptions(stdlog.New(os.Stderr, "", stdlog.LstdFlags), stdr.Options{LogCaller: stdr.All})
+
 	if *debug {
-		log = log.WithVerbosity(2)
+		stdr.SetVerbosity(2)
 	} else if *verbose {
-		log = log.WithVerbosity(1)
+		stdr.SetVerbosity(1)
 	}
 	if len(flag.Args()) > 0 {
 		log.V(2).Info("handleFlags: non-flag", "args", strings.Join(flag.Args(), " "))
