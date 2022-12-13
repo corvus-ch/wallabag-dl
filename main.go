@@ -31,6 +31,7 @@ var output = flag.String("output", "out", "directory to place exported files")
 var format = flag.String("format", "epub", "format of the exported documents")
 var archive = flag.Bool("archive", false, "archive entries after download")
 var all = flag.Bool("all", false, "download all entries including the ones that are archived")
+var minReadingTime = flag.Int("min-reading-time", 1, "The minimal reading time an entry must have to be exported")
 
 func handleFlags() logr.Logger {
 	flag.Parse()
@@ -125,6 +126,11 @@ func params(all bool) url.Values {
 }
 
 func doExport(log logr.Logger, c *client.Client, entry client.Item, dir, format string) error {
+	if entry.ReadingTime < *minReadingTime {
+		log.WithValues("reading_time", entry.ReadingTime).Info("Skipping entry with short reading time")
+		return nil
+	}
+
 	fileName := fmt.Sprintf("%s.%s", entry.Title, format)
 	outputPath := filepath.Join(dir, fileName)
 	log = log.WithValues("path", outputPath)
